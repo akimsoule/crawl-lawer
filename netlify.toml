@@ -1,6 +1,7 @@
 [build]
-  command = "npm install && npm run build && npx prisma migrate deploy && npx prisma generate"
-  publish = "dist"
+  # Build the Lovable UI located in the doc-sight-search-main subfolder
+  command = "npm ci && npm --prefix doc-sight-search-main ci && npm --prefix doc-sight-search-main run build && npx prisma migrate deploy && npx prisma generate"
+  publish = "doc-sight-search-main/dist"
 
 [[redirects]]
   from = "/api/*"
