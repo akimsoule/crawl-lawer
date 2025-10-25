@@ -7,7 +7,7 @@ export default (request: Request, context: Context) => {
 
     return new Response(`Hello ${subject}`)
   } catch (error) {
-    return new Response(error.toString(), {
+    return new Response(error instanceof Error ? error.toString() : String(error), {
       status: 500,
     })
   }
