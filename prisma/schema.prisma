@@ -1,0 +1,45 @@
+// Prisma schema for PostgreSQL database storing crawled URLs and OCR'd documents
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Document {
+  id            Int         @id @default(autoincrement())
+  url           String      @unique
+  year          Int
+  index         Int
+  title         String?
+  text          String
+  bytes         Int?
+  tag           String?
+  ocrProvider   String?
+  ocrConfidence Float?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  crawlUrls     CrawlUrl[]
+
+  @@unique([year, index])
+}
+
+model CrawlUrl {
+  id            Int         @id @default(autoincrement())
+  url           String      @unique
+  year          Int?
+  index         Int?
+  status        String      @default("pending")
+  httpStatus    Int?
+  lastVisitedAt DateTime?
+  attempts      Int         @default(0)
+  lastError     String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  document      Document?   @relation(fields: [documentId], references: [id])
+  documentId    Int?
+}
