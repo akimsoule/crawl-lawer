@@ -17,6 +17,13 @@ export default async function handler(_req: Request): Promise<Response> {
   const cfg = await getCronConfig('backfill', defaultsBackfill());
   if (!cfg.enabled) return new Response(JSON.stringify({ ok: true, skipped: 'disabled' }), { status: 200 });
   const p = cfg.params;
+  // Garde‑fou: n'activer le backfill que quand 'latest' est au repos
+  const quietRuns = Math.max(1, Number((p as any).needQuietRuns ?? 4));
+  const latestRuns = await prisma.cronRun.findMany({ where: { name: 'latest' }, orderBy: { startedAt: 'desc' }, take: quietRuns });
+  const sumDownloaded = latestRuns.reduce((s, r) => s + (r.downloaded ?? 0), 0);
+  if (latestRuns.length < quietRuns || sumDownloaded > 0) {
+    return new Response(JSON.stringify({ ok: true, skipped: 'waiting_latest_to_catch_up', reason: { quietRuns, seen: latestRuns.length, sumDownloaded } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
   let years: number[];
   if (Array.isArray((p as any).years)) {
     years = (p as any).years.filter((y: any) => Number.isFinite(y)).map(Number);

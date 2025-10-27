@@ -44,6 +44,7 @@ export function defaultsBackfill() {
   return {
     yearsCount: 2, // N-1, N-2
     batchPerYear: 3,
+    needQuietRuns: 4, // nombre de runs 'latest' consécutifs sans nouveaux téléchargements avant d'activer le backfill
     concurrency: 1,
     gapLimit: 20,
     timeoutMs: 8000,
