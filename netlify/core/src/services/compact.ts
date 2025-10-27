@@ -50,7 +50,12 @@ export async function compactNotFoundForYears(years: number[], maxRowsPerYear = 
         await prisma.notFoundRange.update({ where: { id: prev.id }, data: { endIndex: endIdx, count: endIdx - prev.startIndex + 1 } });
         rangesExtended++;
       } else {
-            await prisma.notFoundRange.create({ data: { year, startIndex: startIdx, endIndex: endIdx, count: endIdx - startIdx + 1 } });
+        // Idempotent: en cas de course ou relance, éviter P2002 via upsert sur la contrainte unique composite
+        await prisma.notFoundRange.upsert({
+          where: { year_startIndex_endIndex: { year, startIndex: startIdx, endIndex: endIdx } },
+          update: {},
+          create: { year, startIndex: startIdx, endIndex: endIdx, count: endIdx - startIdx + 1 },
+        });
         rangesCreated++;
       }
 
