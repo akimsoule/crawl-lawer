@@ -136,5 +136,5 @@ export async function listCrawlUrls(params?: { status?: string; page?: number; p
 export async function getOverview() {
   const res = await fetch('/api/overview');
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json() as Promise<{ stats: { totalDocuments: number; totalUrls: number; successRate: number; pendingUrls: number }, recent: { id: number; title: string; time: string; status: 'success'|'failed'|'processing'|'pending' }[], providers: { name: string; count: number; percentage: number }[] }>;
+  return res.json() as Promise<{ stats: { totalDocuments: number; totalUrls: number; successRate: number; pendingUrls: number }, trends: { documents: { value: number; isPositive: boolean }, urls: { value: number; isPositive: boolean }, successRate: { value: number; isPositive: boolean } }, recent: { id: number; title: string; time: string; status: 'success'|'failed'|'processing'|'pending' }[], providers: { name: string; count: number; percentage: number }[] }>;
 }

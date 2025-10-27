@@ -6,6 +6,7 @@ import { useOverview } from "@/hooks/useOverview";
 export default function Dashboard() {
   const { data } = useOverview();
   const stats = data?.stats ?? { totalDocuments: 0, totalUrls: 0, successRate: 0, pendingUrls: 0 };
+  const trends = data?.trends;
   const recent = data?.recent ?? [];
   const providers = data?.providers ?? [];
 
@@ -21,19 +22,19 @@ export default function Dashboard() {
           title="Documents totaux"
           value={stats.totalDocuments}
           icon={FileText}
-          trend={{ value: 12.5, isPositive: true }}
+          trend={trends?.documents}
         />
         <StatCard
           title="URLs crawlées"
           value={stats.totalUrls}
           icon={Link}
-          trend={{ value: 8.2, isPositive: true }}
+          trend={trends?.urls}
         />
         <StatCard
           title="Taux de succès"
           value={`${stats.successRate}%`}
           icon={CheckCircle2}
-          trend={{ value: 3.1, isPositive: true }}
+          trend={trends?.successRate}
         />
         <StatCard
           title="URLs en attente"
