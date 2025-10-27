@@ -49,8 +49,8 @@ export async function updateDocument(id: number, data: { text?: string; title?: 
 
 export type FilterItem = {
   id: number;
-  type: 'exclude' | 'include';
-  field: 'title' | 'text' | 'url' | 'tag';
+  type: 'exclude' | 'include' | 'protect';
+  field: 'title' | 'text' | 'url' | 'tag' | 'category';
   mode: 'contains' | 'regex' | 'startsWith' | 'endsWith';
   pattern: string;
   active: boolean;
@@ -105,4 +105,36 @@ export async function getCronRuns(params?: { name?: 'latest'|'backfill'|'purge';
   const res = await fetch(`/api/cron-runs?${usp.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<{ runs: Record<'latest'|'backfill'|'purge', { items: CronRunItem[]; aggregates: any }>; storage: { totalDocs: number; totalBytes: number; storageBudget: number } }>;
+}
+
+// Crawl URLs listing
+export type CrawlUrlItem = {
+  id: number;
+  url: string;
+  status: string;
+  httpStatus?: number | null;
+  attempts: number;
+  lastVisitedAt?: string | null;
+  year?: number | null;
+  index?: number | null;
+  updatedAt: string;
+  uiStatus: string;
+};
+
+export async function listCrawlUrls(params?: { status?: string; page?: number; pageSize?: number; q?: string }) {
+  const usp = new URLSearchParams();
+  if (params?.status) usp.set('status', params.status);
+  if (params?.page) usp.set('page', String(params.page));
+  if (params?.pageSize) usp.set('pageSize', String(params.pageSize));
+  if (params?.q) usp.set('q', params.q);
+  const res = await fetch(`/api/crawl-urls?${usp.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<{ items: (Omit<CrawlUrlItem,'lastVisitedAt'|'updatedAt'> & { lastVisitedAt?: string | null; updatedAt: string })[]; total: number; page: number; pageSize: number }>;
+}
+
+// Overview (dashboard)
+export async function getOverview() {
+  const res = await fetch('/api/overview');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<{ stats: { totalDocuments: number; totalUrls: number; successRate: number; pendingUrls: number }, recent: { id: number; title: string; time: string; status: 'success'|'failed'|'processing'|'pending' }[], providers: { name: string; count: number; percentage: number }[] }>;
 }

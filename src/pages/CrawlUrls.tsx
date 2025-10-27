@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, RefreshCw, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,58 +18,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCrawlUrls } from "@/hooks/useCrawlUrls";
+import { Input } from "@/components/ui/input";
 
 export default function CrawlUrls() {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
-  // Mock data
-  const crawlUrls = [
-    {
-      id: 1,
-      url: "https://example.com/document-2024-123.pdf",
-      status: "completed",
-      httpStatus: 200,
-      attempts: 1,
-      lastVisitedAt: "2024-01-15 14:30",
-      year: 2024,
-      index: 123,
-    },
-    {
-      id: 2,
-      url: "https://example.com/document-2024-124.pdf",
-      status: "pending",
-      httpStatus: null,
-      attempts: 0,
-      lastVisitedAt: null,
-      year: null,
-      index: null,
-    },
-    {
-      id: 3,
-      url: "https://example.com/document-2024-125.pdf",
-      status: "failed",
-      httpStatus: 404,
-      attempts: 3,
-      lastVisitedAt: "2024-01-15 12:15",
-      lastError: "Page not found",
-      year: null,
-      index: null,
-    },
-    {
-      id: 4,
-      url: "https://example.com/document-2024-126.pdf",
-      status: "processing",
-      httpStatus: 200,
-      attempts: 1,
-      lastVisitedAt: "2024-01-15 15:45",
-      year: 2024,
-      index: 126,
-    },
-  ];
-
-  const filteredUrls = crawlUrls.filter((url) =>
-    statusFilter === "all" ? true : url.status === statusFilter
-  );
+  const { data, refetch, isFetching } = useCrawlUrls({ status: statusFilter === 'all' ? undefined : statusFilter, page, pageSize, q: q.trim() || undefined });
+  const crawlUrls = data?.items ?? [];
+  const filteredUrls = useMemo(() => crawlUrls, [crawlUrls]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -91,13 +51,16 @@ export default function CrawlUrls() {
           <h1 className="text-3xl font-bold tracking-tight">URLs à crawler</h1>
           <p className="text-muted-foreground">Gérez la file d'attente de crawling</p>
         </div>
-        <Button>
+        <Button onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className="h-4 w-4 mr-2" />
-          Rafraîchir
+          {isFetching ? 'Chargement...' : 'Rafraîchir'}
         </Button>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1">
+          <Input placeholder="Rechercher par URL" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+        </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Filtrer par statut" />
@@ -114,6 +77,10 @@ export default function CrawlUrls() {
 
       <Card>
         <CardContent className="p-0">
+          <div className="flex items-center justify-between px-4 py-2 text-sm text-muted-foreground">
+            <div>Résultats: {data?.total ?? 0}</div>
+            <div>Page {data?.page ?? page} / {Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))}</div>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -129,7 +96,7 @@ export default function CrawlUrls() {
             <TableBody>
               {filteredUrls.map((crawlUrl) => (
                 <TableRow key={crawlUrl.id}>
-                  <TableCell>{getStatusIcon(crawlUrl.status)}</TableCell>
+                  <TableCell>{getStatusIcon((crawlUrl as any).uiStatus ?? crawlUrl.status)}</TableCell>
                   <TableCell className="font-mono text-xs max-w-md truncate">
                     <a
                       href={crawlUrl.url}
@@ -141,8 +108,8 @@ export default function CrawlUrls() {
                     </a>
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={crawlUrl.status} />
-                    {crawlUrl.httpStatus && (
+                    <StatusBadge status={(crawlUrl as any).uiStatus ?? crawlUrl.status} />
+                    {!!crawlUrl.httpStatus && (
                       <span className="ml-2 text-xs text-muted-foreground">
                         HTTP {crawlUrl.httpStatus}
                       </span>
@@ -169,10 +136,10 @@ export default function CrawlUrls() {
                     </span>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {crawlUrl.lastVisitedAt || "-"}
+                    {crawlUrl.lastVisitedAt ? new Date(crawlUrl.lastVisitedAt).toLocaleString() : "-"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -182,6 +149,12 @@ export default function CrawlUrls() {
           </Table>
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-between">
+        <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || isFetching}>Précédent</Button>
+        <div className="text-sm text-muted-foreground">Page {page} / {Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))}</div>
+        <Button variant="outline" onClick={() => setPage((p) => (p < Math.ceil((data?.total ?? 0) / pageSize) ? p + 1 : p))} disabled={isFetching || page >= Math.ceil((data?.total ?? 0) / pageSize)}>Suivant</Button>
+      </div>
 
       {filteredUrls.length === 0 && (
         <Card>
