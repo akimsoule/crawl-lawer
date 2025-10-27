@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 
 interface StatusBadgeProps {
-  status: string;
+  readonly status: string;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
