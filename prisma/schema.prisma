@@ -106,3 +106,18 @@ model CronRun {
 
   @@index([name, startedAt])
 }
+
+// Regroupe des séquences consécutives d'indexes not_found pour éviter d'avoir 1 ligne par index
+model NotFoundRange {
+  id         Int      @id @default(autoincrement())
+  year       Int
+  startIndex Int
+  endIndex   Int
+  count      Int      // endIndex - startIndex + 1 (à titre informatif)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@index([year, startIndex])
+  @@index([year, endIndex])
+  @@unique([year, startIndex, endIndex])
+}

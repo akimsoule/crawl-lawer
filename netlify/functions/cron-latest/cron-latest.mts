@@ -3,6 +3,7 @@ import prisma from "../../core/src/db/prisma";
 import { crawl } from "../../core/src/services/crawler";
 import { getCronConfig, defaultsLatest, upsertCronParams } from "../../core/src/services/config";
 import { logCronRun, pruneCronRuns } from "../../core/src/services/metrics";
+import { compactNotFoundForYears } from "../../core/src/services/compact";
 
 export const config: Config = { schedule: "*/15 * * * *" };
 
@@ -59,6 +60,8 @@ export default async function handler(_req: Request): Promise<Response> {
   await logCronRun('latest', { startedAt, durationSec: dt, stats, extra: { startIndex, endIndex, batchPrev: prevBatch, batchNext: nextBatch } });
   // Retention: keep only last 5 runs per cron
   await pruneCronRuns('latest', 5);
+  // Compact not_found for current year in small batches
+  await compactNotFoundForYears([year], 400);
 
   return new Response(JSON.stringify({ ok: true, year, startIndex, endIndex, stats, durationSec: dt, batch: { prev: prevBatch, next: nextBatch } }), { status: 200, headers: { 'content-type': 'application/json' } });
 }

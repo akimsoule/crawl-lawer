@@ -17,16 +17,17 @@ Collecte incrémentale des décrets du Bénin (du plus récent au plus ancien) a
 - Frontend: Vite + React + React Query + shadcn/ui (`src/`).
 - Fonctions Netlify (`netlify/functions/`):
 	- `cron-latest` (*/15): traite un petit lot des plus récents.
-	- `cron-backfill` (*/15): traite un petit lot d’années récentes.
+	- `cron-backfill` (*/15): traite un petit lot d’années récentes (gating: attend plusieurs runs « calmes » de latest avant de démarrer).
 	- `cron-purge` (*/15): purge pour rester sous le budget de stockage.
-	- `documents`, `filters`, `cron-runs`: APIs pour UI/observabilité.
+	- APIs UI/observabilité: `documents`, `filters`, `cron-runs`, `crawl-urls`, `overview`.
 - Core serveur (`netlify/core/src/services/`): `crawler`, `ocrSpace`, `purge`, `config`, `metrics`.
 - Base de données (Prisma + Postgres):
 	- `Document` (texte OCR, bytes, year/index, category, userEdited, tag…).
 	- `Filter` (type: exclude/include/protect; field: title/text/url/tag/category; mode: contains/startsWith/endsWith/regex; pattern; active).
 	- `CrawlUrl` (état du crawl par URL).
+	- `NotFoundRange` (compaction des URLs 404 par plages contiguës pour éviter le bloat de lignes).
 	- `CronConfig` (paramètres dynamiques des crons; auto‑tuning persisté).
-	- `CronRun` (journal des exécutions pour statistiques).
+	- `CronRun` (journal des exécutions pour statistiques; rétention: derniers 5 par cron).
 
 ## Prérequis
 
@@ -90,6 +91,12 @@ Par défaut, Netlify Dev expose les fonctions sous `/api/*` via les redirects de
 - Statistiques
 	- `GET /api/cron-runs?cron=latest|backfill|purge&limit=50&since=7d`: métriques récentes et agrégées.
 
+- Crawl URLs
+	- `GET /api/crawl-urls?status=pending|success|error|not_found|excluded&q=&page=&pageSize=`: liste paginée des URLs de crawl, recherche plein‑texte par `q`, avec statut UI dérivé.
+
+- Vue d’ensemble (Dashboard)
+	- `GET /api/overview`: statistiques globales (compte de documents, récents, distribution par provider OCR, tendances mois‑sur‑mois) pour alimenter le Dashboard.
+
 ## Filtres protégés (anti‑purge)
 
 - Type `protect` appliqué sur `tag` ou `category`.
@@ -106,9 +113,18 @@ Par défaut, Netlify Dev expose les fonctions sous `/api/*` via les redirects de
 ## Auto‑tuning des crons
 
 - `cron-latest` ajuste la taille de lot `batch` selon la durée et les erreurs du run.
-- `cron-backfill` ajuste `batchPerYear` de la même manière.
+- `cron-backfill` ajuste `batchPerYear` de la même manière et ne s’exécute que lorsque les N derniers runs de `cron-latest` n’ont rien téléchargé ("quiet runs").
 - `cron-purge` ajuste `maxDeletesPerRun` selon l’usage (`before / maxBytes`).
 - Les paramètres sont persistés dans `CronConfig` et consultés au run suivant.
+
+### Rétention des métriques
+
+- Chaque cron conserve uniquement les 5 derniers `CronRun` (pruning automatique après log) pour limiter la croissance.
+
+### Compaction des 404 (NotFoundRange)
+
+- Après les runs `cron-latest` et `cron-backfill`, les URLs en statut `not_found` sont regroupées en plages contiguës par année dans `NotFoundRange` puis supprimées de `CrawlUrl`.
+- Effet: réduction drastique du nombre de lignes « 404 » tout en conservant l’information de gaps; futur: le crawler peut sauter proactivement ces plages.
 
 ## Notes migrations (squash)
 
@@ -116,6 +132,8 @@ Par défaut, Netlify Dev expose les fonctions sous `/api/*` via les redirects de
 - En dev local, si votre base avait l’ancien historique, exécutez:
 	- `npx prisma migrate reset` (ATTENTION: supprime les données locales) puis `npx prisma migrate dev`.
 - En prod: ne pas faire de reset. Utiliser `prisma migrate deploy` avec prudence et sur une base alignée.
+
+Note: Un changement ultérieur a introduit `NotFoundRange`; assurez‑vous d’avoir appliqué les dernières migrations (`prisma migrate deploy`).
 
 ## Limitations & bonnes pratiques
 
@@ -129,6 +147,15 @@ Par défaut, Netlify Dev expose les fonctions sous `/api/*` via les redirects de
 - `npm run build` — Build UI + Prisma generate.
 - `npm run preview` — Prévisualisation Vite.
 - `npm run lint` — Lint.
+
+## UI et statuts
+
+- Pages principales:
+	- Dashboard: tendances, récents, distribution des providers (via `/api/overview`).
+	- Documents: liste, recherche, édition OCR (marque `userEdited=true`).
+	- Crawl URLs: liste paginée avec recherche `q` et filtres de statut.
+	- Filtres: gestion des `exclude`/`include`/`protect`.
+- Statuts alignés backend: `pending`, `success`, `error`, `not_found`, `excluded`.
 
 ## Licence
 
