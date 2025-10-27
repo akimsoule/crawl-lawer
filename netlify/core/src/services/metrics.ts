@@ -1,5 +1,5 @@
-import prisma from '../db/prisma';
-import { upsertCronParams } from './config';
+import prisma from "../db/prisma";
+import { upsertCronParams } from "./config";
 
 export type SimpleStats = {
   attempted?: number;
@@ -15,8 +15,13 @@ export function ema(prev: number | undefined, value: number, alpha = 0.3) {
 }
 
 export async function logCronRun(
-  name: 'latest' | 'backfill' | 'purge',
-  data: { startedAt: Date; durationSec: number; stats?: SimpleStats; extra?: any }
+  name: "latest" | "backfill" | "purge",
+  data: {
+    startedAt: Date;
+    durationSec: number;
+    stats?: SimpleStats;
+    extra?: any;
+  }
 ) {
   const { startedAt, durationSec, stats, extra } = data;
   await prisma.cronRun.create({
@@ -37,10 +42,10 @@ export async function logCronRun(
   const emaUpdate: Record<string, any> = {};
   // Charger éventuellement les EMA existantes via un update merge simple
   // Comme upsertCronParams fusionne, on lit avant n'est pas nécessaire ici.
-  if (typeof durationSec === 'number') {
+  if (typeof durationSec === "number") {
     emaUpdate.emaDurationSec = durationSec; // valeur brute; lissage fait côté merge incrémental si implémenté plus tard
   }
-  if (typeof stats?.errors === 'number') {
+  if (typeof stats?.errors === "number") {
     emaUpdate.emaErrors = stats.errors;
   }
   await upsertCronParams(name, {
@@ -53,12 +58,15 @@ export async function logCronRun(
  * Keep only the most recent `keep` CronRun entries for a given name, delete older ones.
  * Returns the number of deleted rows.
  */
-export async function pruneCronRuns(name: 'latest' | 'backfill' | 'purge', keep = 5): Promise<number> {
+export async function pruneCronRuns(
+  name: "latest" | "backfill" | "purge",
+  keep = 5
+): Promise<number> {
   if (!Number.isFinite(keep) || keep <= 0) keep = 5;
   // Get IDs to delete: all except the most recent `keep`
   const older = await prisma.cronRun.findMany({
     where: { name },
-    orderBy: { startedAt: 'desc' },
+    orderBy: { startedAt: "desc" },
     skip: keep,
     take: 1000, // safeguard batch
     select: { id: true },

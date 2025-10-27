@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument } from "pdf-lib";
 
 export interface OCRSpaceResult {
   ParsedResults?: Array<{
@@ -29,21 +29,26 @@ export interface OCROptions {
 export async function extractTextFromPDFBuffer(
   pdfBuffer: Buffer,
   options: OCROptions
-): Promise<{ text: string; meta: { provider: 'ocr.space'; engine: number } }>
-{
-  const base64PDF = pdfBuffer.toString('base64');
+): Promise<{ text: string; meta: { provider: "ocr.space"; engine: number } }> {
+  const base64PDF = pdfBuffer.toString("base64");
 
   const formData = new FormData();
-  formData.append('base64Image', `data:application/pdf;base64,${base64PDF}`);
-  formData.append('language', options.language || 'fre');
-  formData.append('isOverlayRequired', String(options.isOverlayRequired ?? false));
-  formData.append('detectOrientation', String(options.detectOrientation ?? true));
-  formData.append('scale', String(options.scale ?? true));
-  formData.append('isTable', String(options.isTable ?? false));
-  formData.append('OCREngine', String(options.OCREngine ?? 2));
+  formData.append("base64Image", `data:application/pdf;base64,${base64PDF}`);
+  formData.append("language", options.language || "fre");
+  formData.append(
+    "isOverlayRequired",
+    String(options.isOverlayRequired ?? false)
+  );
+  formData.append(
+    "detectOrientation",
+    String(options.detectOrientation ?? true)
+  );
+  formData.append("scale", String(options.scale ?? true));
+  formData.append("isTable", String(options.isTable ?? false));
+  formData.append("OCREngine", String(options.OCREngine ?? 2));
 
-  const response = await fetch('https://api.ocr.space/parse/image', {
-    method: 'POST',
+  const response = await fetch("https://api.ocr.space/parse/image", {
+    method: "POST",
     headers: {
       apikey: options.apiKey,
     },
@@ -56,11 +61,18 @@ export async function extractTextFromPDFBuffer(
 
   const result = (await response.json()) as OCRSpaceResult;
   if (result.IsErroredOnProcessing) {
-    throw new Error(`Erreur OCR: ${result.ErrorMessage?.join(', ') ?? result.ErrorDetails ?? 'inconnue'}`);
+    throw new Error(
+      `Erreur OCR: ${
+        result.ErrorMessage?.join(", ") ?? result.ErrorDetails ?? "inconnue"
+      }`
+    );
   }
 
-  const text = result.ParsedResults?.[0]?.ParsedText ?? '';
-  return { text, meta: { provider: 'ocr.space', engine: Number(options.OCREngine ?? 2) } };
+  const text = result.ParsedResults?.[0]?.ParsedText ?? "";
+  return {
+    text,
+    meta: { provider: "ocr.space", engine: Number(options.OCREngine ?? 2) },
+  };
 }
 
 /**
@@ -72,8 +84,7 @@ export async function extractTextFromPDFBufferSmart(
   options: OCROptions,
   maxKB = 1024,
   maxPagesPerReq = 3
-): Promise<{ text: string; meta: { provider: 'ocr.space'; engine: number } }>
-{
+): Promise<{ text: string; meta: { provider: "ocr.space"; engine: number } }> {
   const limitBytes = maxKB * 1024;
 
   // Toujours charger pour connaître le nombre de pages
@@ -85,7 +96,7 @@ export async function extractTextFromPDFBufferSmart(
     return extractTextFromPDFBuffer(pdfBuffer, options);
   }
 
-  let fullText = '';
+  let fullText = "";
 
   // Helper: OCR d'un sous-PDF construit avec un ensemble de pages
   const ocrPages = async (pageIndexes: number[]) => {
@@ -106,54 +117,66 @@ export async function extractTextFromPDFBufferSmart(
           // Même une page dépasse → on tente quand même, sinon note d'échec
           try {
             const { text } = await extractTextFromPDFBuffer(singleBuf, options);
-            fullText += (fullText ? '\n\n' : '') + text;
+            fullText += (fullText ? "\n\n" : "") + text;
           } catch {
-            fullText += (fullText ? '\n\n' : '') + `[OCR échec page ${pi + 1} (> ${maxKB} KB)]`;
+            fullText +=
+              (fullText ? "\n\n" : "") +
+              `[OCR échec page ${pi + 1} (> ${maxKB} KB)]`;
           }
         } else {
           const { text } = await extractTextFromPDFBuffer(singleBuf, options);
-          fullText += (fullText ? '\n\n' : '') + text;
+          fullText += (fullText ? "\n\n" : "") + text;
         }
       }
     } else {
       const { text } = await extractTextFromPDFBuffer(chunkBuf, options);
-      fullText += (fullText ? '\n\n' : '') + text;
+      fullText += (fullText ? "\n\n" : "") + text;
     }
   };
 
   // Traiter par paquets de maxPagesPerReq
   for (let i = 0; i < pageCount; i += maxPagesPerReq) {
-    const idxs = Array.from({ length: Math.min(maxPagesPerReq, pageCount - i) }, (_, k) => i + k);
+    const idxs = Array.from(
+      { length: Math.min(maxPagesPerReq, pageCount - i) },
+      (_, k) => i + k
+    );
     await ocrPages(idxs);
   }
 
-  return { text: fullText, meta: { provider: 'ocr.space', engine: Number(options.OCREngine ?? 2) } };
+  return {
+    text: fullText,
+    meta: { provider: "ocr.space", engine: Number(options.OCREngine ?? 2) },
+  };
 }
 
 function isQuotaLikeError(err: unknown): boolean {
-  const msg = String((err as any)?.message ?? err ?? '').toLowerCase();
+  const msg = String((err as any)?.message ?? err ?? "").toLowerCase();
   return (
-    msg.includes('quota') ||
-    msg.includes('credit') ||
-    msg.includes('too many requests') ||
-    msg.includes('429') ||
-    msg.includes('rate limit') ||
-    msg.includes('maximum ocr requests')
+    msg.includes("quota") ||
+    msg.includes("credit") ||
+    msg.includes("too many requests") ||
+    msg.includes("429") ||
+    msg.includes("rate limit") ||
+    msg.includes("maximum ocr requests")
   );
 }
 
 export async function extractTextFromPDFBufferSmartWithKeys(
   pdfBuffer: Buffer,
   apiKeys: string[],
-  baseOptions: Omit<OCROptions, 'apiKey'>,
+  baseOptions: Omit<OCROptions, "apiKey">,
   maxKB = 1024,
   maxPagesPerReq = 3
-): Promise<{ text: string; meta: { provider: 'ocr.space'; engine: number } }>
-{
+): Promise<{ text: string; meta: { provider: "ocr.space"; engine: number } }> {
   let lastErr: any;
   for (const key of apiKeys) {
     try {
-      return await extractTextFromPDFBufferSmart(pdfBuffer, { ...baseOptions, apiKey: key }, maxKB, maxPagesPerReq);
+      return await extractTextFromPDFBufferSmart(
+        pdfBuffer,
+        { ...baseOptions, apiKey: key },
+        maxKB,
+        maxPagesPerReq
+      );
     } catch (e) {
       lastErr = e;
       if (isQuotaLikeError(e)) {
@@ -165,5 +188,5 @@ export async function extractTextFromPDFBufferSmartWithKeys(
     }
   }
   // Toutes les clés épuisées
-  throw lastErr ?? new Error('OCR failure: no API keys succeeded');
+  throw lastErr ?? new Error("OCR failure: no API keys succeeded");
 }

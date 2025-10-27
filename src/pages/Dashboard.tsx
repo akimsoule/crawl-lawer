@@ -9,6 +9,7 @@ export default function Dashboard() {
   const trends = data?.trends;
   const recent = data?.recent ?? [];
   const providers = data?.providers ?? [];
+  const skipKnown404 = data?.skipKnown404;
 
   return (
     <div className="space-y-8">
@@ -39,6 +40,11 @@ export default function Dashboard() {
         <StatCard
           title="URLs en attente"
           value={stats.pendingUrls}
+          icon={AlertCircle}
+        />
+        <StatCard
+          title="Sauts 404 (24h)"
+          value={skipKnown404?.recentTotal ?? 0}
           icon={AlertCircle}
         />
       </div>
