@@ -48,3 +48,23 @@ export async function logCronRun(
     lastRunAt: new Date().toISOString(),
   });
 }
+
+/**
+ * Keep only the most recent `keep` CronRun entries for a given name, delete older ones.
+ * Returns the number of deleted rows.
+ */
+export async function pruneCronRuns(name: 'latest' | 'backfill' | 'purge', keep = 5): Promise<number> {
+  if (!Number.isFinite(keep) || keep <= 0) keep = 5;
+  // Get IDs to delete: all except the most recent `keep`
+  const older = await prisma.cronRun.findMany({
+    where: { name },
+    orderBy: { startedAt: 'desc' },
+    skip: keep,
+    take: 1000, // safeguard batch
+    select: { id: true },
+  });
+  if (older.length === 0) return 0;
+  const ids = older.map((r) => r.id);
+  const res = await prisma.cronRun.deleteMany({ where: { id: { in: ids } } });
+  return res.count ?? 0;
+}

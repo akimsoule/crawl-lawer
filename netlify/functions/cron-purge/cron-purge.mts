@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { enforceStorageBudget, getTotalStorageBytes } from "../../core/src/services/purge";
 import { getCronConfig, defaultsPurge, upsertCronParams } from "../../core/src/services/config";
-import { logCronRun } from "../../core/src/services/metrics";
+import { logCronRun, pruneCronRuns } from "../../core/src/services/metrics";
 
 export const config: Config = { schedule: "*/15 * * * *" };
 
@@ -33,5 +33,6 @@ export default async function handler(_req: Request): Promise<Response> {
     lastDeleted: purge.deleted,
   });
   await logCronRun('purge', { startedAt, durationSec: dt, extra: { before, after, ratio, deletes, deleted: purge.deleted, freedBytes: purge.freedBytes } });
+  await pruneCronRuns('purge', 5);
   return new Response(JSON.stringify({ ok: true, before, purge, after, tunedDeletes: deletes }), { status: 200, headers: { 'content-type': 'application/json' } });
 }
