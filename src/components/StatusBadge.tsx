@@ -15,7 +15,10 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         return "secondary";
       case "failed":
       case "error":
+      case "not_found":
         return "destructive";
+      case "excluded":
+        return "outline";
       default:
         return "outline";
     }

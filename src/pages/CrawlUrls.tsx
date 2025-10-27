@@ -36,9 +36,15 @@ export default function CrawlUrls() {
       case "completed":
         return <CheckCircle2 className="h-4 w-4 text-success" />;
       case "failed":
+      case "error":
+      case "not_found":
         return <AlertCircle className="h-4 w-4 text-destructive" />;
       case "processing":
         return <RefreshCw className="h-4 w-4 text-warning animate-spin" />;
+      case "success":
+        return <CheckCircle2 className="h-4 w-4 text-success" />;
+      case "excluded":
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
@@ -61,16 +67,17 @@ export default function CrawlUrls() {
         <div className="flex-1">
           <Input placeholder="Rechercher par URL" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setPage(1); setStatusFilter(v); }}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Filtrer par statut" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les statuts</SelectItem>
             <SelectItem value="pending">En attente</SelectItem>
-            <SelectItem value="processing">En cours</SelectItem>
-            <SelectItem value="completed">Terminé</SelectItem>
-            <SelectItem value="failed">Échoué</SelectItem>
+            <SelectItem value="success">Succès</SelectItem>
+            <SelectItem value="error">Erreur</SelectItem>
+            <SelectItem value="not_found">Introuvable</SelectItem>
+            <SelectItem value="excluded">Exclu</SelectItem>
           </SelectContent>
         </Select>
       </div>
