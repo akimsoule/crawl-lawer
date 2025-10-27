@@ -75,6 +75,80 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
   const startIdx = opt.startIndex && opt.startIndex > 0 ? opt.startIndex : 1;
   const endIdx = opt.endIndex && opt.endIndex > 0 ? opt.endIndex : Number.MAX_SAFE_INTEGER;
 
+  // Charger les filtres actifs une fois pour toutes
+  const activeFilters = await prisma.filter.findMany({ where: { active: true } });
+
+  const shouldExclude = (ctx: { title?: string | null; text?: string; url: string; tag?: string | null; category?: string | null }) => {
+    const title = (ctx.title ?? '').toLowerCase();
+    const text = (ctx.text ?? '').toLowerCase();
+    const url = (ctx.url ?? '').toLowerCase();
+    const tag = (ctx.tag ?? '').toLowerCase();
+    const category = (ctx.category ?? '').toLowerCase();
+
+    // Exclusion systematique: nominations
+    const nominationPatterns = [
+      'nomination',
+      'portant nomination',
+      'portant nominations',
+      'nommé',
+      'nommée',
+      'est nommé',
+      'sont nommés',
+    ];
+    const isNomination = nominationPatterns.some((p) => title.includes(p) || text.includes(p));
+    if (isNomination) return { exclude: true, category: 'nomination' as const };
+
+    // Filtres dynamiques
+    for (const f of activeFilters) {
+      let source: string | undefined;
+      switch (f.field) {
+        case 'title':
+          source = title;
+          break;
+        case 'text':
+          source = text;
+          break;
+        case 'url':
+          source = url;
+          break;
+        case 'tag':
+          source = tag;
+          break;
+        case 'category':
+          source = category;
+          break;
+        default:
+          source = undefined;
+      }
+      if (!source) continue;
+      let matched = false;
+      switch (f.mode) {
+        case 'contains':
+          matched = source.includes(f.pattern.toLowerCase());
+          break;
+        case 'startsWith':
+          matched = source.startsWith(f.pattern.toLowerCase());
+          break;
+        case 'endsWith':
+          matched = source.endsWith(f.pattern.toLowerCase());
+          break;
+        case 'regex':
+          try {
+            const re = new RegExp(f.pattern, 'i');
+            matched = re.test(source);
+          } catch {
+            matched = false;
+          }
+          break;
+      }
+      if (matched) {
+        if (f.type === 'exclude') return { exclude: true as const, category: undefined };
+        // type include → ne rien faire de spécial pour l'instant
+      }
+    }
+    return { exclude: false as const, category: undefined };
+  };
+
   for (const year of years) {
     let consecutiveNotFound = 0;
     let foundThisYear = 0;
@@ -162,10 +236,19 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
                 3
               );
               console.log(`${pfx(year, index)} 🧠 OCR ok (${text.length} caractères)`);
+              // Classification & filtres
+              const excl0 = shouldExclude({ title: undefined, text, url, tag: undefined });
+              if (excl0.exclude) {
+                console.log(`${pfx(year, index)} 🧹 Exclu par règle (${excl0.category ?? 'filter'}) → pas d'enregistrement`);
+                await prisma.crawlUrl.update({ where: { url }, data: { status: 'excluded', httpStatus: resTry.status } });
+                stats.skipped++;
+                return;
+              }
+
               const doc = await prisma.document.upsert({
                 where: { url },
-                update: { text, bytes: pdfBuffer.byteLength, ocrProvider: meta.provider, year, index },
-                create: { url, year, index, text, bytes: pdfBuffer.byteLength, ocrProvider: meta.provider },
+                update: { text, bytes: pdfBuffer.byteLength, ocrProvider: meta.provider, year, index, category: undefined, isExcluded: false },
+                create: { url, year, index, text, bytes: pdfBuffer.byteLength, ocrProvider: meta.provider, category: undefined, isExcluded: false },
               });
               console.log(`${pfx(year, index)} 💾 Document enregistré (id=${doc.id})`);
               await prisma.crawlUrl.update({ where: { url }, data: { status: 'success', httpStatus: resTry.status, documentId: doc.id } });
@@ -212,6 +295,15 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
           );
           console.log(`${pfx(year, index)} 🧠 OCR ok (${text.length} caractères)`);
 
+          // Classification & filtres
+          const excl = shouldExclude({ title: undefined, text, url, tag: undefined });
+          if (excl.exclude) {
+            console.log(`${pfx(year, index)} 🧹 Exclu par règle (${excl.category ?? 'filter'}) → pas d'enregistrement`);
+            await prisma.crawlUrl.update({ where: { url }, data: { status: 'excluded', httpStatus: res.status } });
+            stats.skipped++;
+            return;
+          }
+
           // Save document
           const doc = await prisma.document.upsert({
             where: { url },
@@ -221,6 +313,8 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
               ocrProvider: meta.provider,
               year,
               index,
+              category: undefined,
+              isExcluded: false,
             },
             create: {
               url,
@@ -229,6 +323,8 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
               text,
               bytes: pdfBuffer.byteLength,
               ocrProvider: meta.provider,
+              category: undefined,
+              isExcluded: false,
             },
           });
           console.log(`${pfx(year, index)} 💾 Document enregistré (id=${doc.id})`);

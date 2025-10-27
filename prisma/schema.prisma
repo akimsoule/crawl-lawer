@@ -19,6 +19,9 @@ model Document {
   tag           String?
   ocrProvider   String?
   ocrConfidence Float?
+  category      String?     // e.g., "decret", "nomination", etc.
+  isExcluded    Boolean     @default(false) // true if filtered out by dynamic rules (kept for trace or soft-delete)
+  userEdited    Boolean     @default(false) // true si l'utilisateur a modifié manuellement le texte/titre
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -42,4 +45,64 @@ model CrawlUrl {
 
   document      Document?   @relation(fields: [documentId], references: [id])
   documentId    Int?
+}
+
+// Dynamic filters configured via UI to exclude or include documents
+enum FilterType {
+  exclude
+  include
+  protect
+}
+
+enum FilterField {
+  title
+  text
+  url
+  tag
+  category
+}
+
+enum FilterMode {
+  contains
+  regex
+  startsWith
+  endsWith
+}
+
+model Filter {
+  id        Int         @id @default(autoincrement())
+  type      FilterType  @default(exclude)
+  field     FilterField @default(text)
+  mode      FilterMode  @default(contains)
+  pattern   String
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+// Configuration dynamique des crons (granularité, lots, etc.)
+model CronConfig {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique // 'latest', 'backfill', 'purge'
+  enabled   Boolean   @default(true)
+  params    Json
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Journalisation fine des exécutions de cron
+model CronRun {
+  id          Int       @id @default(autoincrement())
+  name        String
+  startedAt   DateTime
+  durationSec Float
+  attempted   Int?
+  downloaded  Int?
+  notFound    Int?
+  errors      Int?
+  skipped     Int?
+  extra       Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([name, startedAt])
 }

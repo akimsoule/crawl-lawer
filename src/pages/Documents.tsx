@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Search, Filter, FileText, ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, Filter, FileText, ExternalLink, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,58 +11,57 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import { useDocuments, useUpdateDocument } from "@/hooks/useDocuments";
+import type { DocumentItem } from "@/services/api";
+
+function ocrConfidenceClass(v?: number | null) {
+  if (v == null) return "text-muted-foreground";
+  if (v >= 95) return "text-success";
+  if (v >= 85) return "text-warning";
+  return "text-destructive";
+}
 
 export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const { toast } = useToast();
+  const docsQuery = useDocuments({ q: searchQuery || undefined, year: yearFilter === 'all' ? undefined : yearFilter, page, limit: pageSize });
+  const items = docsQuery.data?.items ?? [];
+  const total = docsQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const loading = docsQuery.isLoading || docsQuery.isFetching;
 
-  // Mock data
-  const documents = [
-    {
-      id: 1,
-      year: 2024,
-      index: 123,
-      title: "Rapport Annuel 2024",
-      url: "https://example.com/doc-2024-123",
-      text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit...",
-      ocrProvider: "Tesseract",
-      ocrConfidence: 94.5,
-      tag: "rapport",
-      bytes: 245678,
-    },
-    {
-      id: 2,
-      year: 2024,
-      index: 122,
-      title: "Guide Utilisateur",
-      url: "https://example.com/doc-2024-122",
-      text: "Documentation complète pour l'utilisation du système...",
-      ocrProvider: "Google Vision",
-      ocrConfidence: 98.2,
-      tag: "documentation",
-      bytes: 187234,
-    },
-    {
-      id: 3,
-      year: 2023,
-      index: 456,
-      title: "Spécifications Techniques",
-      url: "https://example.com/doc-2023-456",
-      text: "Détails techniques et architecturaux du projet...",
-      ocrProvider: "Azure OCR",
-      ocrConfidence: 91.7,
-      tag: "technique",
-      bytes: 312456,
-    },
-  ];
+  // Réinitialiser la page si la recherche/filtre change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, yearFilter]);
 
-  const filteredDocuments = documents.filter((doc) => {
-    const matchesSearch =
-      doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.text.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesYear = yearFilter === "all" || doc.year.toString() === yearFilter;
-    return matchesSearch && matchesYear;
-  });
+  const [editOpen, setEditOpen] = useState(false);
+  const [editDoc, setEditDoc] = useState<DocumentItem | null>(null);
+  const [editText, setEditText] = useState("");
+
+  const openEdit = (doc: any) => {
+    setEditDoc(doc);
+    setEditText(doc.text ?? "");
+    setEditOpen(true);
+  };
+
+  const updateMutation = useUpdateDocument();
+  const saveEdit = async () => {
+    if (!editDoc) return;
+    try {
+      await updateMutation.mutateAsync({ id: editDoc.id, text: editText });
+      toast({ title: "Texte mis à jour" });
+      setEditOpen(false);
+    } catch (e: any) {
+      toast({ title: "Échec de la sauvegarde", description: String(e?.message ?? e), variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -95,8 +94,20 @@ export default function Documents() {
         </Select>
       </div>
 
+      {/* Pagination top */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div>
+          {loading ? 'Chargement…' : `Total: ${total} documents`}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>Précédent</Button>
+          <span>Page {page} / {totalPages}</span>
+          <Button size="sm" variant="outline" disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Suivant</Button>
+        </div>
+      </div>
+
       <div className="grid gap-4">
-        {filteredDocuments.map((doc) => (
+        {items.map((doc) => (
           <Card key={doc.id} className="hover:shadow-md transition-shadow">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -118,7 +129,12 @@ export default function Documents() {
                     </a>
                   </CardDescription>
                 </div>
-                {doc.tag && <Badge variant="outline">{doc.tag}</Badge>}
+                <div className="flex items-center gap-2">
+                  {doc.tag && <Badge variant="outline">{doc.tag}</Badge>}
+                  <Button size="sm" variant="outline" onClick={() => openEdit(doc)}>
+                    <Pencil className="h-4 w-4 mr-1" /> Éditer
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -129,16 +145,8 @@ export default function Documents() {
                 </div>
                 <div>
                   <span className="font-medium">Confiance:</span>{" "}
-                  <span
-                    className={
-                      doc.ocrConfidence >= 95
-                        ? "text-success"
-                        : doc.ocrConfidence >= 85
-                        ? "text-warning"
-                        : "text-destructive"
-                    }
-                  >
-                    {doc.ocrConfidence}%
+                  <span className={ocrConfidenceClass(doc.ocrConfidence)}>
+                    {doc.ocrConfidence == null ? "N/A" : `${doc.ocrConfidence}%`}
                   </span>
                 </div>
                 <div>
@@ -151,7 +159,7 @@ export default function Documents() {
         ))}
       </div>
 
-      {filteredDocuments.length === 0 && (
+      {items.length === 0 && !loading && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
@@ -159,6 +167,34 @@ export default function Documents() {
           </CardContent>
         </Card>
       )}
+
+      {/* Pagination bottom */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div>
+          {loading ? 'Chargement…' : `Total: ${total} documents`}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>Précédent</Button>
+          <span>Page {page} / {totalPages}</span>
+          <Button size="sm" variant="outline" disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Suivant</Button>
+        </div>
+      </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Éditer le texte OCR</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground break-all">{editDoc?.url}</p>
+            <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={16} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Annuler</Button>
+            <Button onClick={saveEdit}>Sauvegarder</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

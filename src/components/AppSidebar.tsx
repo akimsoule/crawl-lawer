@@ -1,4 +1,4 @@
-import { Home, FileText, Link, BarChart3 } from "lucide-react";
+import { Home, FileText, Link, BarChart3, Filter as FilterIcon } from "lucide-react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -16,6 +16,7 @@ const items = [
   { title: "Documents", url: "/documents", icon: FileText },
   { title: "URLs à crawler", url: "/crawl-urls", icon: Link },
   { title: "Statistiques", url: "/statistics", icon: BarChart3 },
+  { title: "Filtres", url: "/filters", icon: FilterIcon },
 ];
 
 export function AppSidebar() {

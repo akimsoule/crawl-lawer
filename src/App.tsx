@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import CrawlUrls from "./pages/CrawlUrls";
 import Statistics from "./pages/Statistics";
+import Filters from "./pages/Filters";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
                   <Route path="/documents" element={<Documents />} />
                   <Route path="/crawl-urls" element={<CrawlUrls />} />
                   <Route path="/statistics" element={<Statistics />} />
+                  <Route path="/filters" element={<Filters />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
