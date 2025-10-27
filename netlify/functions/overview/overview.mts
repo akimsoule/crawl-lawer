@@ -94,6 +94,17 @@ export default async function handler(req: Request): Promise<Response> {
   const srTrendVal = Math.round((srCurr - srPrev) * 10) / 10;
   const srTrendPos = srTrendVal >= 0;
 
+  // Skips due to NotFoundRange: sum recent from CronRun.extra
+  const recentCronRuns = await prisma.cronRun.findMany({
+    where: { startedAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24) } },
+    orderBy: { startedAt: 'desc' },
+    take: 20,
+    select: { name: true, extra: true, startedAt: true },
+  });
+  const skippedKnown404Recent = recentCronRuns.reduce((s, r) => s + (Number((r.extra as any)?.skippedKnown404 ?? 0) || 0), 0);
+  const lastLatest = recentCronRuns.find((r) => r.name === 'latest');
+  const lastBackfill = recentCronRuns.find((r) => r.name === 'backfill');
+
   return new Response(JSON.stringify({
     stats: {
       totalDocuments,
@@ -108,5 +119,12 @@ export default async function handler(req: Request): Promise<Response> {
     },
     recent: recentItems,
     providers,
+    skipKnown404: {
+      recentTotal: skippedKnown404Recent,
+      lastRun: {
+        latest: Number((lastLatest?.extra as any)?.skippedKnown404 ?? 0) || 0,
+        backfill: Number((lastBackfill?.extra as any)?.skippedKnown404 ?? 0) || 0,
+      }
+    },
   }), { status: 200, headers: { 'content-type': 'application/json' } });
 }

@@ -26,6 +26,7 @@ export type ResultStats = {
   notFound: number;
   errors: number;
   skipped: number;
+  skippedKnown404?: number;
 };
 
 const DEFAULTS = {
@@ -59,7 +60,7 @@ async function headExists(axiosGet: AxiosInstance, url: string, userAgent: strin
 }
 
 export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<ResultStats> {
-  const stats: ResultStats = { attempted: 0, downloaded: 0, notFound: 0, errors: 0, skipped: 0 };
+  const stats: ResultStats = { attempted: 0, downloaded: 0, notFound: 0, errors: 0, skipped: 0, skippedKnown404: 0 };
   const limit = pLimit(opt.concurrency ?? DEFAULTS.concurrency);
 
   const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: (opt.concurrency ?? DEFAULTS.concurrency) * 2 });
@@ -174,6 +175,7 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
           const jump = Math.min(r.endIndex, endIdx) - i + 1;
           console.log(`${pfx(year, i)} ⏭️ plage not_found connue ${year}[${r.startIndex}-${r.endIndex}] → skip ${jump} index`);
           stats.skipped += jump;
+          stats.skippedKnown404 = (stats.skippedKnown404 ?? 0) + jump;
           // Ces positions sont connues comme 404; on les compte dans la continuité pour respecter gapLimit
           consecutiveNotFound += jump;
           i = r.endIndex + 1; // reprendre juste après la fin de la plage

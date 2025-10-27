@@ -86,7 +86,8 @@ export default async function handler(_req: Request): Promise<Response> {
     }),
     {} as any
   );
-  await logCronRun('backfill', { startedAt, durationSec: dt, stats: agg, extra: { years, batchPrev: prevBatch, batchNext: nextBatch } });
+  const skippedKnown404Sum = results.reduce((s, r) => s + ((r.stats as any)?.skippedKnown404 ?? 0), 0);
+  await logCronRun('backfill', { startedAt, durationSec: dt, stats: agg, extra: { years, batchPrev: prevBatch, batchNext: nextBatch, skippedKnown404: skippedKnown404Sum } });
   await pruneCronRuns('backfill', 5);
   await compactNotFoundForYears(years, 400);
 

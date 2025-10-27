@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCrawlUrls } from "@/hooks/useCrawlUrls";
+import { useCronRuns } from "@/hooks/useCronRuns";
 import { Input } from "@/components/ui/input";
 
 export default function CrawlUrls() {
@@ -28,6 +29,7 @@ export default function CrawlUrls() {
   const pageSize = 20;
 
   const { data, refetch, isFetching } = useCrawlUrls({ status: statusFilter === 'all' ? undefined : statusFilter, page, pageSize, q: q.trim() || undefined });
+  const cronRuns = useCronRuns({ limit: 1 });
   const crawlUrls = data?.items ?? [];
   const filteredUrls = useMemo(() => crawlUrls, [crawlUrls]);
 
@@ -80,6 +82,21 @@ export default function CrawlUrls() {
             <SelectItem value="excluded">Exclu</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="text-sm text-muted-foreground">
+        {(() => {
+          const latest = cronRuns.data?.runs?.latest?.items?.[0];
+          const backfill = cronRuns.data?.runs?.backfill?.items?.[0];
+          const a = Number(latest?.extra?.skippedKnown404 ?? 0) || 0;
+          const b = Number(backfill?.extra?.skippedKnown404 ?? 0) || 0;
+          const has = a > 0 || b > 0;
+          return (
+            <div className="mt-2">
+              <span className="font-medium">Sauts NotFoundRange (dernier run)</span>: latest {a}, backfill {b} {has ? '' : '(aucun)'}
+            </div>
+          );
+        })()}
       </div>
 
       <Card>

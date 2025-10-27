@@ -57,7 +57,7 @@ export default async function handler(_req: Request): Promise<Response> {
     lastStats: stats,
   });
 
-  await logCronRun('latest', { startedAt, durationSec: dt, stats, extra: { startIndex, endIndex, batchPrev: prevBatch, batchNext: nextBatch } });
+  await logCronRun('latest', { startedAt, durationSec: dt, stats, extra: { startIndex, endIndex, batchPrev: prevBatch, batchNext: nextBatch, skippedKnown404: (stats as any).skippedKnown404 ?? 0 } });
   // Retention: keep only last 5 runs per cron
   await pruneCronRuns('latest', 5);
   // Compact not_found for current year in small batches
