@@ -153,12 +153,35 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
     let consecutiveNotFound = 0;
     let foundThisYear = 0;
     const tasks: Array<Promise<void>> = [];
+    // Charger les plages not_found connues pour cet année et les utiliser pour skipper proactivement
+    const nfRanges = await prisma.notFoundRange.findMany({
+      where: { year },
+      orderBy: { startIndex: 'asc' },
+      select: { startIndex: true, endIndex: true },
+    });
+    let rIdx = 0; // pointeur courant dans les plages triées
 
-    for (let i = startIdx; i <= endIdx; i++) {
+    let i = startIdx;
+    while (i <= endIdx) {
       if (opt.limitPerYear && foundThisYear >= opt.limitPerYear) break;
       if (consecutiveNotFound >= (opt.gapLimit ?? DEFAULTS.gapLimit)) break;
+      // Avancer le pointeur de plage tant que la plage finit avant i
+      while (rIdx < nfRanges.length && nfRanges[rIdx].endIndex < i) rIdx++;
+      // Si i tombe dans une plage [startIndex, endIndex], skipper en un seul saut
+      if (rIdx < nfRanges.length) {
+        const r = nfRanges[rIdx];
+        if (i >= r.startIndex && i <= r.endIndex) {
+          const jump = Math.min(r.endIndex, endIdx) - i + 1;
+          console.log(`${pfx(year, i)} ⏭️ plage not_found connue ${year}[${r.startIndex}-${r.endIndex}] → skip ${jump} index`);
+          stats.skipped += jump;
+          // Ces positions sont connues comme 404; on les compte dans la continuité pour respecter gapLimit
+          consecutiveNotFound += jump;
+          i = r.endIndex + 1; // reprendre juste après la fin de la plage
+          continue;
+        }
+      }
 
-      const index = i;
+  const index = i;
       const url = buildUrl(year, index);
       stats.attempted++;
 
@@ -352,6 +375,7 @@ export async function crawl(opt: CrawlOptions & { apiKeys: string[] }): Promise<
       if (tasks.length % 200 === 0) {
         await Promise.all(tasks.splice(0));
       }
+      i++;
     }
 
     await Promise.all(tasks);

@@ -124,7 +124,7 @@ Par défaut, Netlify Dev expose les fonctions sous `/api/*` via les redirects de
 ### Compaction des 404 (NotFoundRange)
 
 - Après les runs `cron-latest` et `cron-backfill`, les URLs en statut `not_found` sont regroupées en plages contiguës par année dans `NotFoundRange` puis supprimées de `CrawlUrl`.
-- Effet: réduction drastique du nombre de lignes « 404 » tout en conservant l’information de gaps; futur: le crawler peut sauter proactivement ces plages.
+- Effet: réduction drastique du nombre de lignes « 404 » tout en conservant l’information de gaps; le crawler saute désormais proactivement ces plages (aucune requête HEAD/GET effectuée sur ces indices, `stats.skipped` incrémenté, `gapLimit` respecté).
 
 ## Notes migrations (squash)
 
@@ -139,7 +139,7 @@ Note: Un changement ultérieur a introduit `NotFoundRange`; assurez‑vous d’a
 
 - Netlify Functions: viser des lots modestes (<10s) ; l’auto‑tuning aide à rester dans la fenêtre.
 - OCR.space: respect des quotas; fournissez plusieurs clés via `OCR_API_KEY`.
-- Fiabilité du crawl: le crawler essaie un `HEAD` puis confirme avec `GET` si besoin; tolère les 405.
+- Fiabilité du crawl: le crawler saute d’abord les plages `NotFoundRange` connues; sinon, il essaie un `HEAD` puis confirme avec `GET` si besoin; tolère les 405.
 
 ## Scripts utiles
 
